@@ -23,34 +23,6 @@ app.use(
     })
 )
 
-let persons = [
-    {
-        "id": "1",
-        "name": "Arto Hellas",
-        "number": "040-123456"
-    },
-    {
-        "id": "2",
-        "name": "Ada Lovelace",
-        "number": "39-44-5323523"
-    },
-    {
-        "id": "3",
-        "name": "Dan Abramov",
-        "number": "12-43-234345"
-    },
-    {
-        "id": "4",
-        "name": "Mary Poppendieck",
-        "number": "39-23-6423122"
-    }
-]
-
-const generateId = (s, e) => {
-    return s + Math.floor(Math.random() * (e - s));
-}
-
-
 app.get('/api/persons', (request, response) => {
     Person.find({}).then(persons => {
         response.json(persons)
@@ -58,21 +30,32 @@ app.get('/api/persons', (request, response) => {
 })
 
 app.get('/info', (request, response) => {
-    const info = `<p>Phonebook has info for ${persons.length} people</p><p>${new Date()}</p>`
-    response.send(info)
-})
-
-app.get('/api/persons/:id', (request, response) => {
-    Person.findById(request.params.id).then(person => {
-        response.json(person)
+    Person.find({}).then(persons => {
+        const info = `<p>Phonebook has info for ${persons.length} people</p><p>${new Date()}</p>`
+        response.send(info)
     })
 })
 
-app.delete('/api/persons/:id', (request, response) => {
-    const id = request.params.id
-    persons = persons.filter(p => p.id !== String(id))
+app.get('/api/persons/:id', (request, response, next) => {
+    Person
+        .findById(request.params.id)
+        .then(person => {
+            if (person) {
+                response.json(person)
+            } else {
+                response.status(404).end()
+            }
+        })
+        .catch(error => next(error))
+})
 
-    response.status(204).end()
+app.delete('/api/persons/:id', (request, response, next) => {
+    Person
+        .findByIdAndDelete(request.params.id)
+        .then(person => {
+            response.status(204).end()
+        })
+        .catch(error => next(error))
 })
 
 app.post('/api/persons', (request, response) => {
@@ -84,12 +67,6 @@ app.post('/api/persons', (request, response) => {
         })
     }
 
-    // if (persons.find(p => p.name === body.name)) {
-    //     return response.status(400).json({
-    //         error: 'name must be unique'
-    //     })
-    // }
-
     const person = new Person({
         name: body.name,
         number: body.number,
@@ -99,6 +76,38 @@ app.post('/api/persons', (request, response) => {
         response.json(person)
     })
 })
+
+app.put('/api/persons/:id', (request, response, next) => {
+    const body = request.body
+
+    Person
+        .findById(request.params.id)
+        .then(person => {
+            if (!person) {
+                return reponse.status(404).end()
+            }
+
+            person.number = body.number
+
+            return person.save().then(updatedPerson => {
+                response.json(updatedPerson)
+            })
+        })
+        .catch(error => next(error))
+})
+
+const errorHandler = (error, request, response, next) => {
+    console.log(error.message)
+
+    if (error.name == 'CastError') {
+        response.status(400).json({error: 'malformatted id'})
+    }
+    
+    next(error)
+}
+
+
+app.use(errorHandler)
 
 const PORT = process.env.PORT
 app.listen(PORT)
